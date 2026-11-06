@@ -41,11 +41,88 @@ enum MenuCmd {
     SelectAll,
     Wrap(&'static str, &'static str),
     Link,
-    Prefix(&'static str),
+    Block(Block),
     InsertImage,
     InsertNoteLink,
     InsertRule,
     File(FileCmd),
+}
+
+/// Formato di paragrafo da applicare alle righe selezionate.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Block {
+    /// Titolo di livello 1–3; 0 = testo normale.
+    Heading(u8),
+    Task,
+    Bullet,
+    Numbered,
+    Quote,
+}
+
+/// Lunghezza del prefisso di blocco della riga (`## `, `- [ ] `, `1. `, `> `…) e il suo tipo.
+fn block_of(line: &str) -> (Option<Block>, usize) {
+    let hashes = line.bytes().take_while(|&c| c == b'#').count();
+    if (1..=6).contains(&hashes) && line[hashes..].starts_with(' ') {
+        return (Some(Block::Heading(hashes.min(3) as u8)), hashes + 1);
+    }
+    match markdown::list_continuation(line) {
+        Some((LineKind::Task { .. }, len, _)) => (Some(Block::Task), len),
+        Some((LineKind::Bullet, len, _)) => (Some(Block::Bullet), len),
+        Some((LineKind::Ordered, len, _)) => (Some(Block::Numbered), len),
+        Some((LineKind::Quote, len, _)) => (Some(Block::Quote), len),
+        _ => (None, 0),
+    }
+}
+
+/// Applica `block` a tutte le righe toccate dalla selezione `a..b` (in byte).
+/// Gli elenchi numerati vengono numerati 1, 2, 3…; le righe vuote restano vuote.
+/// Se tutte le righe hanno già quel formato (elenchi, checklist, citazioni), lo toglie.
+/// Restituisce il nuovo testo e la nuova selezione.
+pub fn apply_block(text: &str, a: usize, b: usize, block: Block) -> (String, usize, usize) {
+    let first = text[..a].rfind('\n').map_or(0, |i| i + 1);
+    // Una selezione che finisce all'inizio di una riga non comprende quella riga.
+    let b_eff = if b > a && b > first && text[..b].ends_with('\n') { b - 1 } else { b };
+    let last_end = text[b_eff..].find('\n').map_or(text.len(), |i| b_eff + i);
+    let lines: Vec<&str> = text[first..last_end].split('\n').collect();
+
+    let is_list = !matches!(block, Block::Heading(_));
+    let remove = is_list && lines.iter().filter(|l| !l.trim().is_empty()).all(|l| block_of(l).0 == Some(block));
+
+    let mut out = Vec::with_capacity(lines.len());
+    let mut number = 0;
+    for line in &lines {
+        if line.trim().is_empty() {
+            out.push((*line).to_owned());
+            continue;
+        }
+        let (_, len) = block_of(line);
+        let indent: String = line.chars().take_while(|c| *c == ' ' || *c == '\t').collect();
+        // Il testo della riga senza il vecchio prefisso (né rientro, se non ne aveva uno).
+        let body = if len > 0 { &line[len..] } else { line.trim_start_matches([' ', '\t']) };
+        let prefix = match block {
+            _ if remove => String::new(),
+            Block::Heading(0) => String::new(),
+            Block::Heading(n) => format!("{} ", "#".repeat(n as usize)),
+            Block::Task => format!("{indent}- [ ] "),
+            Block::Bullet => format!("{indent}- "),
+            Block::Numbered => {
+                number += 1;
+                format!("{indent}{number}. ")
+            }
+            Block::Quote => "> ".to_owned(),
+        };
+        out.push(format!("{prefix}{body}"));
+    }
+    let new_block = out.join("\n");
+    let new_text = format!("{}{}{}", &text[..first], new_block, &text[last_end..]);
+    let (na, nb) = if a == b {
+        // Cursore senza selezione: resta in fondo alla riga modificata.
+        let end = first + new_block.len();
+        (end, end)
+    } else {
+        (first, first + new_block.len())
+    };
+    (new_text, na, nb)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -101,6 +178,9 @@ pub struct Editor {
     /// Selezione (in byte) al momento del clic destro: il menu agisce su questa,
     /// anche se cliccando sulla voce l'editor perde il focus.
     menu_range: Option<(usize, usize)>,
+    /// Selezione da rimettere quando l'editor riprende il focus dopo un comando del menu
+    /// (riprendendo il focus, egui la azzererebbe).
+    restore_range: Option<(usize, usize)>,
     /// Righe analizzate dell'ultimo testo visto (si rifà l'analisi solo se il testo cambia).
     parsed: (u64, Arc<Vec<Line>>),
     /// Ultima impaginazione e la chiave da cui dipende.
@@ -266,6 +346,14 @@ impl Editor {
             output.response.request_focus();
             self.focus_next_frame = false;
         }
+        if output.response.has_focus()
+            && let Some((a, b)) = self.restore_range.take()
+        {
+            let (a, b) = (a.min(text.len()), b.min(text.len()));
+            if text.is_char_boundary(a) && text.is_char_boundary(b) {
+                set_cursor(ui, text, a, b);
+            }
+        }
         changed |= output.response.changed();
         let mut new_cursor = if output.response.has_focus() { output.cursor_range } else { None };
         // Il clic destro non deve perdere la selezione: serve al menu (Copia, Grassetto…).
@@ -279,6 +367,25 @@ impl Editor {
                 new_cursor = Some(prev);
             }
             self.menu_range = cursor_bytes(ui, text);
+        }
+        // Selezione trascinata oltre il bordo visibile: la nota scorre (più veloce quanto più si è lontani).
+        if output.response.dragged()
+            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        {
+            let visible = ui.clip_rect();
+            let edge = 24.0;
+            let over = if pos.y < visible.top() + edge {
+                visible.top() + edge - pos.y
+            } else if pos.y > visible.bottom() - edge {
+                visible.bottom() - edge - pos.y
+            } else {
+                0.0
+            };
+            if over != 0.0 {
+                let speed = (over.abs() * 0.35).clamp(3.0, 60.0) * over.signum();
+                ui.scroll_with_delta(Vec2::new(0.0, speed));
+                ui.ctx().request_repaint();
+            }
         }
         if new_cursor.map(|c| c.primary.index) != self.cursor.map(|c| c.primary.index) {
             ui.ctx().request_repaint(); // la riga attiva cambia aspetto
@@ -313,7 +420,8 @@ impl Editor {
                     let x = first.min.x + list_indent(line_text, size) + side * 0.55;
                     let r = Rect::from_center_size(Pos2::new(x, first.center().y), Vec2::splat(side));
                     let resp = ui.interact(r.expand(3.0), id.with(("task", n)), Sense::click());
-                    let label: String = line_text.trim_start().get(6..).unwrap_or("").chars().filter(|c| !matches!(c, '*' | '_' | '~' | '`')).collect();
+                    let label: String =
+                        line_text.trim_start().get(6..).unwrap_or("").chars().filter(|c| !matches!(c, '*' | '_' | '~' | '`')).collect();
                     crate::widgets::a11y(&resp, egui::Role::CheckBox, label.trim(), Some(checked));
                     if resp.hovered() {
                         ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
@@ -575,25 +683,22 @@ impl Editor {
             return true;
         }
 
-        // Titoli e checklist: cambiano il prefisso della riga.
-        let (start, end) = line_bounds(text, a);
-        let line = text[start..end].to_owned();
-        let heading = line.bytes().take_while(|&c| c == b'#').count();
-        let heading_len = if heading > 0 && line[heading..].starts_with(' ') { heading + 1 } else { 0 };
-        for (k, level) in [(Key::Num1, 1), (Key::Num2, 2), (Key::Num3, 3), (Key::Num0, 0)] {
+        // Titoli e checklist: valgono per tutte le righe selezionate.
+        for (k, block) in [
+            (Key::Num1, Block::Heading(1)),
+            (Key::Num2, Block::Heading(2)),
+            (Key::Num3, Block::Heading(3)),
+            (Key::Num0, Block::Heading(0)),
+            (Key::L, Block::Task),
+        ] {
             if pressed(cmd, k) {
-                let new = if level == 0 { String::new() } else { format!("{} ", "#".repeat(level)) };
-                return replace_prefix(ui, text, start, heading_len, &new, a);
+                set_block(ui, text, a, b, block);
+                return true;
             }
         }
+        let (start, end) = line_bounds(text, a);
+        let line = text[start..end].to_owned();
         let cont = markdown::list_continuation(&line);
-        if pressed(cmd, Key::L) {
-            return match cont {
-                Some((LineKind::Task { .. }, len, _)) => replace_prefix(ui, text, start, len, "", a),
-                Some((_, len, _)) => replace_prefix(ui, text, start, len, "- [ ] ", a),
-                None => replace_prefix(ui, text, start, 0, "- [ ] ", a),
-            };
-        }
         if pressed(cmd, Key::Enter)
             && let Some((LineKind::Task { checked }, _, _)) = cont
         {
@@ -722,16 +827,10 @@ impl Editor {
                 set_cursor(ui, text, pos, pos);
                 true
             }
-            MenuCmd::Prefix(new) => {
-                let (start, end) = line_bounds(text, a);
-                let line = &text[start..end];
-                let heading = line.bytes().take_while(|&c| c == b'#').count();
-                let old = if heading > 0 && line[heading..].starts_with(' ') {
-                    heading + 1
-                } else {
-                    markdown::list_continuation(line).map_or(0, |(_, len, _)| len)
-                };
-                replace_prefix(ui, text, start, old, new, a)
+            MenuCmd::Block(block) => {
+                set_block(ui, text, a, b, block);
+                self.restore_range = cursor_bytes(ui, text);
+                true
             }
             MenuCmd::InsertNoteLink => {
                 text.replace_range(a..b, "[[");
@@ -856,25 +955,25 @@ fn context_menu(ui: &mut egui::Ui, cx: &EditorCtx<'_>, has_selection: bool) -> O
     });
     ui.menu_button(tr("Paragrafo", "Paragraph"), |ui| {
         ui.set_min_width(210.0);
-        for (label, sc, prefix) in [
-            (tr("Titolo 1", "Heading 1"), "Ctrl+1", "# "),
-            (tr("Titolo 2", "Heading 2"), "Ctrl+2", "## "),
-            (tr("Titolo 3", "Heading 3"), "Ctrl+3", "### "),
-            (tr("Testo normale", "Normal text"), "Ctrl+0", ""),
+        for (label, sc, block) in [
+            (tr("Titolo 1", "Heading 1"), "Ctrl+1", Block::Heading(1)),
+            (tr("Titolo 2", "Heading 2"), "Ctrl+2", Block::Heading(2)),
+            (tr("Titolo 3", "Heading 3"), "Ctrl+3", Block::Heading(3)),
+            (tr("Testo normale", "Normal text"), "Ctrl+0", Block::Heading(0)),
         ] {
             if item(ui, label, sc, true) {
-                cmd = Some(MenuCmd::Prefix(prefix));
+                cmd = Some(MenuCmd::Block(block));
             }
         }
         ui.separator();
-        for (label, sc, prefix) in [
-            (tr("Checklist", "Checklist"), "Ctrl+L", "- [ ] "),
-            (tr("Elenco puntato", "Bulleted list"), "", "- "),
-            (tr("Elenco numerato", "Numbered list"), "", "1. "),
-            (tr("Citazione", "Quote"), "", "> "),
+        for (label, sc, block) in [
+            (tr("Checklist", "Checklist"), "Ctrl+L", Block::Task),
+            (tr("Elenco puntato", "Bulleted list"), "", Block::Bullet),
+            (tr("Elenco numerato", "Numbered list"), "", Block::Numbered),
+            (tr("Citazione", "Quote"), "", Block::Quote),
         ] {
             if item(ui, label, sc, true) {
-                cmd = Some(MenuCmd::Prefix(prefix));
+                cmd = Some(MenuCmd::Block(block));
             }
         }
     });
@@ -961,6 +1060,13 @@ fn wrap_selection(ui: &egui::Ui, text: &mut String, a: usize, b: usize, open: &s
         set_cursor(ui, text, a + open.len(), b + open.len());
     }
     true
+}
+
+/// Applica un formato di paragrafo alle righe selezionate e aggiorna la selezione.
+fn set_block(ui: &egui::Ui, text: &mut String, a: usize, b: usize, block: Block) {
+    let (new_text, na, nb) = apply_block(text, a, b, block);
+    *text = new_text;
+    set_cursor(ui, text, na, nb);
 }
 
 /// Sostituisce i primi `old_len` byte della riga che inizia in `start` con `new`.
@@ -1104,6 +1210,29 @@ fn list_indent(line: &str, size: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn blocks_apply_to_every_selected_line() {
+        let t = "Titolo\nuno\ndue\n\ntre\nfuori";
+        let (a, b) = (t.find("uno").unwrap(), t.find("tre").unwrap() + 3);
+        let (n, ..) = apply_block(t, a, b, Block::Numbered);
+        assert_eq!(n, "Titolo\n1. uno\n2. due\n\n3. tre\nfuori");
+        // Già tutte checklist: il comando le toglie.
+        let (c, ..) = apply_block(t, a, b, Block::Task);
+        assert_eq!(c, "Titolo\n- [ ] uno\n- [ ] due\n\n- [ ] tre\nfuori");
+        let (a2, b2) = (c.find("- [ ] uno").unwrap(), c.find("tre").unwrap() + 3);
+        let (back, ..) = apply_block(&c, a2, b2, Block::Task);
+        assert_eq!(back, t);
+        // Da elenco numerato a puntato, e titoli.
+        let (bul, ..) = apply_block(&n, n.find("1.").unwrap(), n.find("tre").unwrap(), Block::Bullet);
+        assert_eq!(bul, "Titolo\n- uno\n- due\n\n- tre\nfuori");
+        let (h, ..) = apply_block(t, a, a, Block::Heading(2));
+        assert_eq!(h, "Titolo\n## uno\ndue\n\ntre\nfuori");
+        // Una selezione che finisce all'inizio della riga dopo non la include.
+        let sel_end = t.find("due").unwrap();
+        let (one, ..) = apply_block(t, a, sel_end, Block::Bullet);
+        assert_eq!(one, "Titolo\n- uno\ndue\n\ntre\nfuori");
+    }
 
     #[test]
     fn images_fit_the_column() {

@@ -59,7 +59,7 @@
 
 ### Recommended: the installer
 
-1. Open the [latest release](../../releases/latest) and download **`Blocks-0.1.0-setup.exe`**.
+1. Open the [latest release](../../releases/latest) and download **`Blocks-0.1.1-setup.exe`**.
 2. Run it. No administrator rights are needed: Blocks installs for your user only.
 3. Choose your options:
    - **Add Blocks to "Open with" for Markdown files.** Right-click any `.md` file → *Open with* → *Blocks*. The file is edited in place, never copied.

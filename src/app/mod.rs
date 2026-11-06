@@ -305,7 +305,10 @@ impl BlocksApp {
         self.open = None;
         match Vault::open(root.clone()) {
             Ok(mut v) => {
-                if v.notes.is_empty() {
+                // La nota di benvenuto si crea solo la prima volta che si apre la cartella
+                // (quando `.blocks/state.toml` non esiste ancora): se poi la si elimina, non torna.
+                let first_time = !VaultState::path(&root).exists();
+                if first_time && v.notes.is_empty() {
                     let welcome = root.join(format!("{}.md", tr("Benvenuto", "Welcome")));
                     let body = if crate::i18n::is_english() { WELCOME_EN } else { WELCOME_IT };
                     if fsutil::write_atomic(&welcome, body.as_bytes()).is_ok() {
@@ -314,6 +317,9 @@ impl BlocksApp {
                 }
                 self.vault = Some(v);
                 self.state = VaultState::load(&root);
+                if first_time {
+                    self.state.save(&root);
+                }
                 self.settings.vault = Some(root.clone());
                 self.filter = Filter::All;
                 self.history.clear();
