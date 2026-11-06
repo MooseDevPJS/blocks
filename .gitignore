@@ -1,0 +1,6 @@
+/target
+*.tmp
+.blocks/
+# Documenti di lavoro in italiano: restano solo in locale (la pagina GitHub è in inglese).
+/docs/*.md
+/installer/Output/
