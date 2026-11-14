@@ -223,7 +223,7 @@ fn scale(kind: LineKind) -> f32 {
 }
 
 fn editor_id() -> Id {
-    Id::unique("blocks-editor")
+    Id::unique("yonote-editor")
 }
 
 fn char_to_byte(text: &str, char_idx: usize) -> usize {
@@ -624,7 +624,7 @@ impl Editor {
         let s = self.suggest.as_ref()?;
         let pal = theme::palette(ui.ctx());
         let mut chosen = None;
-        egui::Area::new(Id::unique("blocks-suggest")).order(egui::Order::Foreground).fixed_pos(s.pos).show(ui.ctx(), |ui| {
+        egui::Area::new(Id::unique("yonote-suggest")).order(egui::Order::Foreground).fixed_pos(s.pos).show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).inner_margin(6).show(ui, |ui| {
                 ui.set_min_width(220.0);
                 let icon = if s.kind == SuggestKind::Note { crate::icons::Icon::Notes } else { crate::icons::Icon::Hash };

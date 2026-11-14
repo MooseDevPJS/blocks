@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/blocks-256.png" alt="Blocks icon" width="96">
+  <img src="assets/yonote-256.png" alt="Yonote icon" width="96">
 </p>
 
-<h1 align="center">Blocks</h1>
+<h1 align="center">Yonote</h1>
 
 <p align="center">
   Light notes for Windows. Your notes are plain Markdown files in a folder you own.<br>
@@ -10,24 +10,24 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/MooseDevPJS/blocks?label=download&color=E09F1F" alt="Download the latest release"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/MooseDevPJS/yonote?label=download&color=111111" alt="Download the latest release"></a>
   <a href="https://ko-fi.com/moosedevpjs"><img src="https://img.shields.io/badge/Support%20on-Ko--fi-FF5E5B?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4" alt="Windows 10 and 11">
   <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue" alt="PolyForm Noncommercial license">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/dark-mica.png" alt="Blocks in dark mode with the Mica background" width="860">
+  <img src="docs/screenshots/dark-mica.png" alt="Yonote in dark mode with the Mica background" width="860">
 </p>
 
 ---
 
-## Why Blocks
+## Why Yonote
 
 - **Write, don't format.** You type Markdown and see it formatted as you go. The symbols only show on the line you are editing: the calm of Apple Notes with the freedom of Obsidian.
 - **Your files, forever.** Every note is a `.md` file. Put the folder on OneDrive or Google Drive and it follows you. Open an existing Obsidian folder and it just works.
 - **Instant.** Written in Rust. It opens in about 0.15 s and uses no CPU while you're not typing.
-- **Safe by design.** Notes save automatically with atomic writes. Deleted notes go to the Windows Recycle Bin, with Undo. If another program edits the same note, Blocks keeps both versions instead of overwriting one.
+- **Safe by design.** Notes save automatically with atomic writes. Deleted notes go to the Windows Recycle Bin, with Undo. If another program edits the same note, Yonote keeps both versions instead of overwriting one.
 
 ## Features
 
@@ -39,17 +39,18 @@
 | **Links** | `[text](url)`, `[[Another note]]` with autocomplete, backlinks ("Linked from…") |
 | **Organize** | Folders, `#tags`, pinned notes, multi-select with `Ctrl`/`Shift`+click, `Del` to delete |
 | **Find anything** | Search that ignores case and accents, plus the `Ctrl+K` command palette |
-| **Make it yours** | Mica, Acrylic or solid background, light/dark/system theme, 9 accent colors or any color, `.toml` theme files, your own fonts |
+| **Make it yours** | Mica, Acrylic or solid background, light/dark/system theme, black & white by default or any accent color, `.toml` theme files, your own fonts |
 | **Native** | Right-click menus, "Open with" for `.md` files (edits the file in place), screen reader labels, English and Italian |
+| **Updates** | Checks GitHub for new versions and updates itself in one click |
 
 ## Screenshots
 
 | | |
 |---|---|
 | ![Light theme with an image in the note](docs/screenshots/light-image.png) | ![Paper theme in focus mode with the Georgia font](docs/screenshots/paper-focus.png) |
-| Light theme, blue accent, an image in the note | "Carta" theme, Georgia font, focus mode |
+| Light theme, black & white accent, an image in the note | "Carta" theme, coral accent, Georgia font, focus mode |
 | ![Command palette](docs/screenshots/command-palette.png) | ![Right-click menu on the Notte theme](docs/screenshots/context-menu.png) |
-| `Ctrl+K` palette | Right-click menu, "Notte" (OLED black) theme |
+| `Ctrl+K` palette, dark theme | Right-click menu, "Notte" (OLED black) theme, green accent |
 | ![Settings](docs/screenshots/settings.png) | |
 | Settings | |
 
@@ -59,14 +60,20 @@
 
 ### Recommended: the installer
 
-1. Open the [latest release](../../releases/latest) and download **`Blocks-0.1.1-setup.exe`**.
-2. Run it. No administrator rights are needed: Blocks installs for your user only.
+1. Open the [latest release](../../releases/latest) and download **`Yonote-0.2.0-setup.exe`**.
+2. Run it. No administrator rights are needed: Yonote installs for your user only.
 3. Choose your options:
-   - **Add Blocks to "Open with" for Markdown files.** Right-click any `.md` file → *Open with* → *Blocks*. The file is edited in place, never copied.
+   - **Add Yonote to "Open with" for Markdown files.** Right-click any `.md` file → *Open with* → *Yonote*. The file is edited in place, never copied.
    - **Create a desktop shortcut** (optional).
-4. Start Blocks and pick the folder for your notes, or use the suggested `Documents\Notes`.
+4. Start Yonote and pick the folder for your notes, or use the suggested `Documents\Notes`.
 
-To uninstall, open *Settings → Apps → Installed apps → Blocks*. Your notes are never touched.
+To uninstall, open *Settings → Apps → Installed apps → Yonote*. Your notes are never touched.
+
+### Updates
+
+Yonote checks this repository for new releases when it starts (you can turn this off in Settings). When an update is available, a small **Update to x.y.z** button appears in the bottom-left corner: it shows what's new, downloads the installer, verifies its SHA-256 checksum and restarts Yonote on the new version. You can also check by hand in *Settings → Updates → Check now*.
+
+> Coming from **Blocks** (the old name)? Install Yonote over it: your settings, themes, fonts and notes are moved over automatically.
 
 > Windows SmartScreen may warn you because the installer isn't code-signed yet. Click **More info → Run anyway**.
 
@@ -75,15 +82,15 @@ To uninstall, open *Settings → Apps → Installed apps → Blocks*. Your notes
 Only if you want to work on the code. You need [Rust](https://rustup.rs) 1.88 or newer on Windows 10 or 11.
 
 ```bash
-git clone https://github.com/MooseDevPJS/blocks.git
-cd blocks
+git clone https://github.com/MooseDevPJS/yonote.git
+cd yonote
 cargo build --release
 ```
 
-The app is at `target\release\blocks.exe`. To build the installer as well, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run:
+The app is at `target\release\yonote.exe`. To build the installer as well, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run:
 
 ```bash
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\blocks.iss
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\yonote.iss
 ```
 
 The installer is written to `installer\Output\`.
@@ -109,12 +116,12 @@ The installer is written to `installer\Output\`.
 
 ## Where your data lives
 
-- **Notes:** the folder you choose. Pinned notes and the last open note are kept in `.blocks/state.toml` inside it.
-- **Settings, themes, imported fonts and the log:** `%APPDATA%\Blocks\config\`. Set the `BLOCKS_CONFIG_DIR` environment variable to keep them somewhere else, for example on a USB stick.
+- **Notes:** the folder you choose. Pinned notes and the last open note are kept in `.yonote/state.toml` inside it.
+- **Settings, themes, imported fonts and the log:** `%APPDATA%\Yonote\config\`. Set the `YONOTE_CONFIG_DIR` environment variable to keep them somewhere else, for example on a USB stick.
 
 ## Themes
 
-Theme files are TOML files in `%APPDATA%\Blocks\config\themes\`. Only the colors you set are changed:
+Theme files are TOML files in `%APPDATA%\Yonote\config\themes\`. Only the colors you set are changed:
 
 ```toml
 name = "Paper"
@@ -127,7 +134,7 @@ text    = "#2B2620"
 accent  = "#C8102E"
 ```
 
-Blocks reloads the theme while you edit the file.
+Yonote reloads the theme while you edit the file.
 
 ## Project layout
 
@@ -142,6 +149,7 @@ src/
 ├── widgets.rs     UI components (rows, dialogs, buttons, Ko-fi card)
 ├── icons.rs       hand-drawn SVG icons
 ├── platform.rs    Windows: background effect, "Open with"
+├── update.rs      updates from GitHub releases
 └── settings.rs, i18n.rs, fsutil.rs
 assets/            app icon, welcome notes
 installer/         Inno Setup script
@@ -151,7 +159,7 @@ Run the tests with `cargo test`.
 
 ## Support
 
-Blocks is free and will stay free. If it's useful to you, [buy me a coffee on Ko-fi](https://ko-fi.com/moosedevpjs). ☕
+Yonote is free and will stay free. If it's useful to you, [buy me a coffee on Ko-fi](https://ko-fi.com/moosedevpjs). ☕
 
 ## Credits
 
@@ -159,10 +167,10 @@ Created by [MooseDevPJS](https://github.com/MooseDevPJS), with Claude (Anthropic
 
 ## License
 
-Blocks is released under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Yonote is released under the [PolyForm Noncommercial License 1.0.0](LICENSE).
 
 - ✅ Free to use, study, change and share for **personal and other noncommercial** purposes.
 - ✅ Charities, schools, public research and government organizations can use it too.
-- ❌ **Commercial use is not allowed**: you can't sell Blocks or use it in a for-profit product or service.
+- ❌ **Commercial use is not allowed**: you can't sell Yonote or use it in a for-profit product or service.
 
 The source code is public, but this is a *source-available* license, not an OSI "open source" one.

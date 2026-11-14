@@ -13,7 +13,7 @@ mod dialogs;
 mod panels;
 
 use eframe::egui::{
-    self, Align2, Color32, FontId, Id, Key, KeyboardShortcut, Modifiers, Pos2, Rect, RichText, Sense, Stroke, ThemePreference, Vec2,
+    self, Align2, Color32, FontId, Id, Key, KeyboardShortcut, Modifiers, Pos2, Rect, RichText, Sense, ThemePreference, Vec2,
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -64,7 +64,7 @@ impl OpenNote {
     }
 }
 
-/// Stato salvato nel vault, in `.blocks/state.toml`.
+/// Stato salvato nel vault, in `.yonote/state.toml`.
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 struct VaultState {
@@ -75,7 +75,7 @@ struct VaultState {
 
 impl VaultState {
     fn path(root: &Path) -> PathBuf {
-        root.join(".blocks").join("state.toml")
+        root.join(STATE_DIR).join("state.toml")
     }
     fn load(root: &Path) -> Self {
         std::fs::read_to_string(Self::path(root)).ok().and_then(|s| toml::from_str(&s).ok()).unwrap_or_default()
@@ -84,6 +84,20 @@ impl VaultState {
         if let Ok(s) = toml::to_string_pretty(self) {
             let _ = fsutil::write_atomic(&Self::path(root), s.as_bytes());
         }
+    }
+}
+
+/// Cartella dei dati dell'app dentro la cartella delle note.
+const STATE_DIR: &str = ".yonote";
+
+/// Le versioni chiamate "Blocks" usavano `.blocks`: la si rinomina una volta sola.
+fn migrate_legacy_state_dir(root: &Path) {
+    let (old, new) = (root.join(".blocks"), root.join(STATE_DIR));
+    if old.is_dir()
+        && !new.exists()
+        && let Err(e) = std::fs::rename(&old, &new)
+    {
+        log_error(&format!("migrazione .blocks: {e}"));
     }
 }
 
@@ -193,7 +207,7 @@ struct Palette {
     just_opened: bool,
 }
 
-pub struct BlocksApp {
+pub struct YonoteApp {
     settings: Settings,
     saved_settings: Settings,
     vault: Option<Vault>,
@@ -224,9 +238,11 @@ pub struct BlocksApp {
     anchor: Option<PathBuf>,
     confirm: Option<PendingDelete>,
     open_with_registered: bool,
+    updater: crate::update::Updater,
+    show_update: bool,
 }
 
-impl BlocksApp {
+impl YonoteApp {
     pub fn new(cc: &eframe::CreationContext<'_>, file: Option<PathBuf>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
         theme::ensure_example_themes();
@@ -264,10 +280,15 @@ impl BlocksApp {
             anchor: None,
             confirm: None,
             open_with_registered: crate::platform::is_registered(),
+            updater: crate::update::Updater::default(),
+            show_update: false,
         };
         app.apply_theme_mode(&cc.egui_ctx);
         if let Some(root) = app.settings.vault.clone() {
             app.open_vault(&cc.egui_ctx, root);
+        }
+        if app.settings.check_updates {
+            app.updater.check(&cc.egui_ctx);
         }
         // Avviato con un file (doppio clic o "Apri con"): si apre e si modifica quel file.
         if let Some(f) = file {
@@ -306,7 +327,8 @@ impl BlocksApp {
         match Vault::open(root.clone()) {
             Ok(mut v) => {
                 // La nota di benvenuto si crea solo la prima volta che si apre la cartella
-                // (quando `.blocks/state.toml` non esiste ancora): se poi la si elimina, non torna.
+                // (quando `.yonote/state.toml` non esiste ancora): se poi la si elimina, non torna.
+                migrate_legacy_state_dir(&root);
                 let first_time = !VaultState::path(&root).exists();
                 if first_time && v.notes.is_empty() {
                     let welcome = root.join(format!("{}.md", tr("Benvenuto", "Welcome")));
@@ -343,7 +365,7 @@ impl BlocksApp {
             let Ok(ev) = res else { return };
             let relevant = ev.paths.iter().any(|p| {
                 let s = p.to_string_lossy();
-                !s.contains("\\.blocks") && !s.ends_with(".tmp")
+                !s.contains("\\.yonote") && !s.contains("\\.blocks") && !s.ends_with(".tmp")
             });
             if relevant {
                 let _ = tx.send(());
@@ -879,7 +901,7 @@ impl BlocksApp {
         }
         if pressed(cmd | Modifiers::SHIFT, Key::F) {
             self.settings.list_open = true;
-            ctx.memory_mut(|m| m.request_focus(Id::unique("blocks-search")));
+            ctx.memory_mut(|m| m.request_focus(Id::unique("yonote-search")));
         }
         if pressed(cmd | Modifiers::SHIFT, Key::P) {
             self.run_command(ctx, Command::PinNote);
@@ -983,7 +1005,7 @@ impl BlocksApp {
     }
 }
 
-impl eframe::App for BlocksApp {
+impl eframe::App for YonoteApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         // Con Mica/Acrylic la finestra è trasparente e l'effetto di Windows si vede dietro i pannelli.
         [0.0, 0.0, 0.0, 0.0]
@@ -1066,6 +1088,22 @@ impl eframe::App for BlocksApp {
                         if icons::button(ui, Icon::Sidebar, tr("Nascondi le cartelle (Ctrl+\\)", "Hide folders (Ctrl+\\)")).clicked() {
                             self.settings.sidebar_open = false;
                         }
+                        // Aggiornamento disponibile: una pillola discreta, mai una finestra che si apre da sola.
+                        let version = match self.updater.status() {
+                            crate::update::Status::Available(r)
+                            | crate::update::Status::Downloading(r, _)
+                            | crate::update::Status::Ready(r, _) => Some(r.version),
+                            _ => None,
+                        };
+                        if let Some(v) = version {
+                            ui.add_space(2.0);
+                            if widgets::pill(ui, Icon::Update, &format!("{} {v}", tr("Aggiorna a", "Update to")))
+                                .on_hover_text(tr("È disponibile una nuova versione di Yonote", "A new version of Yonote is available"))
+                                .clicked()
+                            {
+                                self.show_update = true;
+                            }
+                        }
                     });
                 });
             }
@@ -1075,6 +1113,7 @@ impl eframe::App for BlocksApp {
         self.settings_window(&ctx);
         self.new_folder_window(&ctx);
         self.confirm_window(&ctx);
+        self.update_window(&ctx);
         self.toast_ui(&ctx);
 
         // Salvataggio automatico.
@@ -1133,11 +1172,11 @@ fn update_links(v: &mut Vault, renamed: &Path, old: &str, new: &str) -> usize {
     failures
 }
 
-fn log_error(msg: &str) {
+pub fn log_error(msg: &str) {
     if let Some(dir) = Settings::dir() {
         use std::io::Write;
         let _ = std::fs::create_dir_all(&dir);
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("blocks.log")) {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("yonote.log")) {
             let _ = writeln!(f, "{} {msg}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
         }
     }

@@ -1,6 +1,6 @@
 [package]
-name = "blocks"
-version = "0.1.1"
+name = "yonote"
+version = "0.2.0"
 edition = "2024"
 description = "Note leggere per Windows: file Markdown, anteprima live, niente telemetria."
 license = "PolyForm-Noncommercial-1.0.0"
@@ -20,9 +20,10 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 notify = "8.2.1"
 nucleo-matcher = "0.3.1"
 raw-window-handle = "0.6"
-resvg = "0.45"
 rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
 skrifa = "0.44"
 sys-locale = "0.3.2"
 toml = "1.2.0"

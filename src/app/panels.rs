@@ -2,7 +2,7 @@
 
 use super::*;
 
-impl BlocksApp {
+impl YonoteApp {
     pub(super) fn welcome(&mut self, ui: &mut egui::Ui) {
         let p = pal(ui);
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(theme::panel_fills(ui.ctx(), &self.settings)[2])).show(ui, |ui| {
@@ -10,9 +10,9 @@ impl BlocksApp {
             ui.vertical_centered(|ui| {
                 ui.add_space((ui.available_height() * 0.22).max(24.0));
                 let (r, _) = ui.allocate_exact_size(Vec2::splat(72.0), Sense::hover());
-                paint_app_mark(ui, r, p.accent);
+                paint_app_mark(ui, r);
                 ui.add_space(18.0);
-                ui.label(RichText::new("Blocks").size(34.0).family(theme::family(true, false)).color(p.text));
+                ui.label(RichText::new("Yonote").size(34.0).family(theme::family(true, false)).color(p.text));
                 ui.add_space(4.0);
                 ui.label(
                     RichText::new(tr("Note leggere. File tuoi. Niente distrazioni.", "Light notes. Your files. No distractions."))
@@ -155,7 +155,7 @@ impl BlocksApp {
             });
         });
         ui.add_space(8.0);
-        widgets::search_field(ui, &mut self.search, tr("Cerca", "Search"), Id::unique("blocks-search"));
+        widgets::search_field(ui, &mut self.search, tr("Cerca", "Search"), Id::unique("yonote-search"));
         ui.add_space(8.0);
 
         let open_path = self.open_path().map(Path::to_path_buf);
@@ -654,19 +654,16 @@ pub(super) fn flatten_folders(root: &vault::Folder) -> Vec<(PathBuf, String, usi
 }
 
 /// Il marchio dell'app: un foglio arrotondato con tre righe, nel colore d'accento.
-pub(super) fn paint_app_mark(ui: &egui::Ui, r: Rect, accent: Color32) {
-    let painter = ui.painter();
+/// Il marchio di Yonote: la Y su un quadrato arrotondato, in bianco e nero.
+/// Nel tema scuro i colori si invertono, così il marchio resta sempre visibile.
+pub(super) fn paint_app_mark(ui: &egui::Ui, r: Rect) {
+    let p = pal(ui);
     let s = r.width();
-    painter.rect_filled(r, s * 0.24, accent);
-    let line = |y: f32, w: f32| {
-        painter.line_segment(
-            [Pos2::new(r.min.x + s * 0.27, r.min.y + s * y), Pos2::new(r.min.x + s * (0.27 + w), r.min.y + s * y)],
-            Stroke::new(s * 0.075, Color32::from_white_alpha(235)),
-        );
-    };
-    line(0.34, 0.46);
-    line(0.5, 0.46);
-    line(0.66, 0.28);
+    let (square, glyph) =
+        if p.dark { (Color32::from_gray(242), Color32::from_gray(12)) } else { (Color32::from_gray(12), Color32::from_gray(250)) };
+    ui.painter().rect_filled(r, s * 0.225, square);
+    let g = Rect::from_center_size(r.center(), Vec2::splat(s * 0.56));
+    egui::Image::new(icons::logo_glyph()).tint(glyph).paint_at(ui, g);
 }
 
 pub(super) fn list_group(ui: &mut egui::Ui, text: &str) {

@@ -228,14 +228,75 @@ pub fn swatch(ui: &mut egui::Ui, color: Color32, selected: bool, tooltip: &str) 
     focus_ring(ui, &resp, rect, 15.0);
     let p = pal(ui);
     let c = rect.center();
-    if selected {
-        ui.painter().circle_stroke(c, 13.5, Stroke::new(2.0, color));
-        ui.painter().circle_filled(c, 9.5, color);
+    let mono = color == Color32::from_rgb(theme::MONO[0], theme::MONO[1], theme::MONO[2]);
+    let r = if selected {
+        9.5
+    } else if resp.hovered() {
+        11.5
     } else {
-        ui.painter().circle_filled(c, if resp.hovered() { 11.5 } else { 11.0 }, color);
-        ui.painter().circle_stroke(c, 11.0, Stroke::new(1.0, p.border));
+        11.0
+    };
+    if selected {
+        ui.painter().circle_stroke(c, 13.5, Stroke::new(2.0, if mono { p.text } else { color }));
+    }
+    if mono {
+        // Metà nera e metà bianca: l'accento che segue il tema.
+        ui.painter().circle_filled(c, r, Color32::WHITE);
+        let half: Vec<Pos2> = (0..=24)
+            .map(|i| std::f32::consts::FRAC_PI_2 + std::f32::consts::PI * i as f32 / 24.0)
+            .map(|a| c + Vec2::angled(a) * r)
+            .collect();
+        ui.painter().add(egui::Shape::convex_polygon(half, Color32::from_gray(12), Stroke::NONE));
+        ui.painter().circle_stroke(c, r, Stroke::new(1.0, p.border.gamma_multiply(2.0)));
+    } else {
+        ui.painter().circle_filled(c, r, color);
+        if !selected {
+            ui.painter().circle_stroke(c, r, Stroke::new(1.0, p.border));
+        }
     }
     resp.on_hover_text(tooltip)
+}
+
+/// Pulsante piccolo e arrotondato con icona e testo (es. "Aggiorna a 0.3.0").
+pub fn pill(ui: &mut egui::Ui, icon: Icon, label: &str) -> Response {
+    let p = pal(ui);
+    let font = FontId::new(12.5, theme::family(true, false));
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), font, p.text);
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(galley.size().x + 40.0, 28.0), Sense::click());
+    a11y(&resp, egui::Role::Button, label, None);
+    let fill = if resp.hovered() { p.accent_fill.gamma_multiply(1.6) } else { p.accent_fill };
+    ui.painter().rect_filled(rect, 14.0, fill);
+    ui.painter().rect_stroke(rect, 14.0, Stroke::new(1.0, p.accent_text.gamma_multiply(0.35)), StrokeKind::Inside);
+    focus_ring(ui, &resp, rect, 14.0);
+    icons::paint(ui, icon, Rect::from_center_size(Pos2::new(rect.min.x + 17.0, rect.center().y), Vec2::splat(15.0)), p.accent_text);
+    ui.painter().galley(Pos2::new(rect.min.x + 29.0, rect.center().y - galley.size().y / 2.0), galley, p.text);
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
+/// Interruttore on/off in stile Windows 11.
+pub fn toggle(ui: &mut egui::Ui, on: &mut bool, label: &str) -> Response {
+    let (rect, mut resp) = ui.allocate_exact_size(Vec2::new(40.0, 20.0), Sense::click());
+    if resp.clicked() {
+        *on = !*on;
+        resp.mark_changed();
+    }
+    a11y(&resp, egui::Role::Switch, label, Some(*on));
+    let p = pal(ui);
+    let t = ui.ctx().animate_bool_responsive(resp.id, *on);
+    let radius = rect.height() / 2.0;
+    if *on {
+        ui.painter().rect_filled(rect, radius, p.accent);
+    } else {
+        ui.painter().rect_stroke(rect, radius, Stroke::new(1.0, p.text_muted), StrokeKind::Inside);
+    }
+    focus_ring(ui, &resp, rect.expand(3.0), radius + 3.0);
+    let x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), t);
+    let knob = if *on { p.on_accent } else { p.text_muted };
+    ui.painter().circle_filled(Pos2::new(x, rect.center().y), radius - if resp.hovered() { 4.0 } else { 5.0 }, knob);
+    resp
 }
 
 /// Riga delle impostazioni: etichetta + descrizione a sinistra, controllo a destra.
@@ -267,14 +328,18 @@ pub fn settings_heading(ui: &mut egui::Ui, text: &str) {
 pub fn button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     let p = pal(ui);
     let font = FontId::new(14.0, theme::family(primary, false));
-    let galley = ui.painter().layout_no_wrap(label.to_owned(), font, p.text);
+    // Il colore va deciso prima dell'impaginazione: il testo impaginato lo tiene.
+    let fg = if primary { p.on_accent } else { p.text };
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), font, fg);
     let size = Vec2::new(galley.size().x + 28.0, 34.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     a11y(&resp, egui::Role::Button, label, None);
-    let (fill, fg) = if primary {
-        (if resp.hovered() { p.accent.gamma_multiply(0.9) } else { p.accent }, p.on_accent)
+    let fill = if primary {
+        if resp.hovered() { p.accent.gamma_multiply(0.85) } else { p.accent }
+    } else if resp.hovered() {
+        p.hover.gamma_multiply(2.2)
     } else {
-        (if resp.hovered() { p.hover.gamma_multiply(2.2) } else { p.hover.gamma_multiply(1.4) }, p.text)
+        p.hover.gamma_multiply(1.4)
     };
     ui.painter().rect_filled(rect, CornerRadius::same(8), fill);
     if !primary {
@@ -307,7 +372,7 @@ pub fn dialog(ctx: &egui::Context, id: &str, title: &str, width: f32, add: impl 
     let p = theme::palette(ctx);
     let mut close = false;
     let frame = egui::Frame::window(&ctx.global_style()).inner_margin(0).corner_radius(14);
-    let resp = egui::Modal::new(Id::unique(("blocks-dialog", id)))
+    let resp = egui::Modal::new(Id::unique(("yonote-dialog", id)))
         .frame(frame)
         .backdrop_color(Color32::from_black_alpha(if p.dark { 120 } else { 60 }))
         .show(ctx, |ui| {
@@ -316,7 +381,7 @@ pub fn dialog(ctx: &egui::Context, id: &str, title: &str, width: f32, add: impl 
             let (bar, _) = ui.allocate_exact_size(Vec2::new(width, 50.0), Sense::hover());
             ui.painter().text(bar.center(), Align2::CENTER_CENTER, title, FontId::new(15.0, theme::family(true, false)), p.text);
             let x = Rect::from_center_size(Pos2::new(bar.max.x - 26.0, bar.center().y), Vec2::splat(30.0));
-            let r = ui.interact(x, Id::unique(("blocks-dialog-close", id)), Sense::click());
+            let r = ui.interact(x, Id::unique(("yonote-dialog-close", id)), Sense::click());
             a11y(&r, egui::Role::Button, crate::i18n::tr("Chiudi", "Close"), None);
             if r.hovered() || r.has_focus() {
                 ui.painter().rect_filled(x, 7.0, p.hover.gamma_multiply(2.4));
@@ -396,7 +461,7 @@ pub fn kofi_card(ui: &mut egui::Ui) -> bool {
                 ui.vertical(|ui| {
                     ui.set_max_width(ui.available_width() - 190.0);
                     ui.label(
-                        egui::RichText::new(tr("Ti piace Blocks?", "Enjoying Blocks?"))
+                        egui::RichText::new(tr("Ti piace Yonote?", "Enjoying Yonote?"))
                             .size(15.0)
                             .family(theme::family(true, false))
                             .color(p.text),

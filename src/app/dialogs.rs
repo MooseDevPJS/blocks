@@ -2,8 +2,9 @@
 
 use super::panels::paint_app_mark;
 use super::*;
+use crate::update::Status;
 
-impl BlocksApp {
+impl YonoteApp {
     pub(super) fn palette_window(&mut self, ctx: &egui::Context) {
         if !self.palette.open {
             return;
@@ -223,14 +224,14 @@ impl BlocksApp {
                     ui.add_space(4.0);
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
-                        for (name, rgb) in theme::ACCENTS {
+                        for (it, en, rgb) in theme::ACCENTS {
                             let c = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-                            if widgets::swatch(ui, c, s.accent == rgb, name).clicked() {
+                            if widgets::swatch(ui, c, s.accent == rgb, tr(it, en)).clicked() {
                                 s.accent = rgb;
                             }
                         }
                         ui.add_space(8.0);
-                        let custom = !theme::ACCENTS.iter().any(|(_, a)| *a == s.accent);
+                        let custom = !theme::ACCENTS.iter().any(|(_, _, a)| *a == s.accent);
                         ui.label(RichText::new(tr("Personalizzato", "Custom")).size(13.0).color(if custom {
                             p.text
                         } else {
@@ -342,11 +343,11 @@ impl BlocksApp {
                     });
                     let help = if open_with {
                         tr(
-                            "Attivo: i file .md si aprono e si modificano direttamente in Blocks.",
-                            "On: .md files open and are edited directly in Blocks.",
+                            "Attivo: i file .md si aprono e si modificano direttamente in Yonote.",
+                            "On: .md files open and are edited directly in Yonote.",
                         )
                     } else {
-                        tr("Tasto destro su un file .md → Apri con → Blocks.", "Right-click a .md file → Open with → Blocks.")
+                        tr("Tasto destro su un file .md → Apri con → Yonote.", "Right-click a .md file → Open with → Yonote.")
                     };
                     widgets::setting_row(ui, tr("«Apri con» per i file Markdown", "\"Open with\" for Markdown files"), help, |ui| {
                         let label = if open_with { tr("Rimuovi", "Remove") } else { tr("Aggiungi", "Add") };
@@ -355,6 +356,43 @@ impl BlocksApp {
                         }
                     });
 
+                    // Aggiornamenti.
+                    let status = self.updater.status();
+                    let help = match &status {
+                        Status::Checking => tr("Controllo in corso…", "Checking…").to_owned(),
+                        Status::UpToDate => format!("{} ({})", tr("Hai l'ultima versione", "You're up to date"), crate::update::CURRENT),
+                        Status::Available(r) | Status::Downloading(r, _) | Status::Ready(r, _) => {
+                            format!("{} {}", tr("Nuova versione disponibile:", "New version available:"), r.version)
+                        }
+                        Status::Failed(e) => format!("{}: {e}", tr("Controllo non riuscito", "Check failed")),
+                        Status::Idle => format!("{} {}", tr("Versione installata:", "Installed version:"), crate::update::CURRENT),
+                    };
+                    let mut check_now = false;
+                    let mut open_update = false;
+                    widgets::setting_row(ui, tr("Aggiornamenti", "Updates"), &help, |ui| {
+                        if matches!(status, Status::Available(_) | Status::Downloading(..) | Status::Ready(..)) {
+                            if widgets::button(ui, tr("Aggiorna…", "Update…"), true).clicked() {
+                                open_update = true;
+                            }
+                        } else if ui.add_enabled(!self.updater.busy(), egui::Button::new(tr("Controlla ora", "Check now"))).clicked() {
+                            check_now = true;
+                        }
+                    });
+                    widgets::setting_row(
+                        ui,
+                        tr("Controlla all'avvio", "Check on startup"),
+                        tr("Una richiesta a GitHub, nient'altro.", "One request to GitHub, nothing else."),
+                        |ui| {
+                            widgets::toggle(ui, &mut s.check_updates, tr("Controlla all'avvio", "Check on startup"));
+                        },
+                    );
+                    if check_now {
+                        self.updater.check(ctx);
+                    }
+                    if open_update {
+                        self.show_update = true;
+                    }
+
                     ui.add_space(14.0);
                     if widgets::kofi_card(ui) {
                         ui.ctx().open_url(egui::OpenUrl::new_tab(KOFI_URL));
@@ -362,9 +400,9 @@ impl BlocksApp {
                     ui.add_space(14.0);
                     ui.horizontal(|ui| {
                         let (r, _) = ui.allocate_exact_size(Vec2::splat(32.0), Sense::hover());
-                        paint_app_mark(ui, r, p.accent);
+                        paint_app_mark(ui, r);
                         ui.vertical(|ui| {
-                            ui.label(RichText::new(format!("Blocks {}", env!("CARGO_PKG_VERSION"))).size(14.0).strong().color(p.text));
+                            ui.label(RichText::new(format!("Yonote {}", env!("CARGO_PKG_VERSION"))).size(14.0).strong().color(p.text));
                             ui.label(
                                 RichText::new(tr(
                                     "Gratis per uso personale. Codice aperto, nessuna telemetria.",
@@ -509,4 +547,138 @@ impl BlocksApp {
             self.confirm = None;
         }
     }
+
+    /// Finestra "Aggiornamento disponibile": novità, download con avanzamento, installazione.
+    pub(super) fn update_window(&mut self, ctx: &egui::Context) {
+        if !self.show_update {
+            return;
+        }
+        let status = self.updater.status();
+        let p = theme::palette(ctx);
+        // Installer pronto: si salva tutto, si avvia l'aggiornamento e Yonote si chiude.
+        if let Status::Ready(_, path) = &status {
+            self.flush(true);
+            match crate::update::run_installer(path) {
+                Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                Err(e) => self.error = Some(format!("{}: {e}", tr("Impossibile avviare l'aggiornamento", "Could not start the update"))),
+            }
+            self.show_update = false;
+            return;
+        }
+        let rel = match &status {
+            Status::Available(r) | Status::Downloading(r, _) => Some(r.clone()),
+            _ => None,
+        };
+        let mut close = false;
+        let mut start = false;
+        let mut retry = false;
+        let title = match &rel {
+            Some(r) => format!("Yonote {}", r.version),
+            None => tr("Aggiornamenti", "Updates").to_owned(),
+        };
+        let x = widgets::dialog(ctx, "update", &title, 440.0, |ui| match &status {
+            Status::Available(r) | Status::Downloading(r, _) => {
+                ui.label(
+                    RichText::new(format!(
+                        "{} {}.",
+                        tr("È disponibile una nuova versione. Ora hai la", "A new version is available. You have"),
+                        crate::update::CURRENT
+                    ))
+                    .size(13.5)
+                    .color(p.text_muted),
+                );
+                if !r.notes.trim().is_empty() {
+                    ui.add_space(8.0);
+                    egui::Frame::NONE.fill(ui.visuals().extreme_bg_color).corner_radius(8).inner_margin(12).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+                            ui.label(RichText::new(plain_notes(&r.notes)).size(13.0).color(p.text));
+                        });
+                    });
+                }
+                ui.add_space(16.0);
+                if let Status::Downloading(_, progress) = status {
+                    ui.add(egui::ProgressBar::new(progress).text(format!("{} {:.0}%", tr("Download…", "Downloading…"), progress * 100.0)));
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(tr(
+                            "Al termine Yonote si chiude, si aggiorna e si riapre.",
+                            "When it's done, Yonote closes, updates and reopens.",
+                        ))
+                        .size(12.5)
+                        .color(p.text_muted),
+                    );
+                } else {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if widgets::button(ui, tr("Aggiorna e riavvia", "Update and restart"), true).clicked() {
+                            start = true;
+                        }
+                        if widgets::button(ui, tr("Più tardi", "Later"), false).clicked() {
+                            close = true;
+                        }
+                        if !r.page.is_empty() {
+                            ui.hyperlink_to(tr("Novità su GitHub", "What's new on GitHub"), &r.page);
+                        }
+                    });
+                }
+            }
+            Status::Failed(e) => {
+                ui.label(RichText::new(format!("{}: {e}", tr("Aggiornamento non riuscito", "Update failed"))).size(13.5).color(p.danger));
+                ui.add_space(16.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if widgets::button(ui, tr("Riprova", "Try again"), true).clicked() {
+                        retry = true;
+                    }
+                    if widgets::button(ui, tr("Chiudi", "Close"), false).clicked() {
+                        close = true;
+                    }
+                    ui.hyperlink_to(
+                        tr("Scarica dal sito", "Download from the website"),
+                        format!("https://github.com/{}/releases/latest", crate::update::REPO),
+                    );
+                });
+            }
+            _ => {
+                ui.label(
+                    RichText::new(tr("Hai l'ultima versione di Yonote.", "You have the latest version of Yonote."))
+                        .size(13.5)
+                        .color(p.text),
+                );
+                ui.add_space(12.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if widgets::button(ui, tr("Chiudi", "Close"), false).clicked() {
+                        close = true;
+                    }
+                });
+            }
+        });
+        // Durante il download la finestra resta: chiuderla non ferma nulla, ma l'avanzamento si vede qui.
+        let downloading = matches!(status, Status::Downloading(..));
+        if start && let Some(r) = rel {
+            self.updater.download(ctx, r);
+        } else if retry {
+            self.updater.dismiss_error();
+            self.updater.check(ctx);
+        } else if close || (x && !downloading) {
+            self.updater.dismiss_error();
+            self.show_update = false;
+        }
+    }
+}
+
+/// Testo della release senza i simboli Markdown più comuni, per mostrarlo semplice.
+fn plain_notes(md: &str) -> String {
+    md.lines()
+        .map(|l| {
+            let l = l.trim_start_matches('#').trim_start();
+            let l = l.replace("**", "").replace('`', "");
+            match l.strip_prefix("- ") {
+                Some(rest) => format!("•  {rest}"),
+                None => l,
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_owned()
 }

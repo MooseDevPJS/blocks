@@ -39,6 +39,7 @@ pub enum Icon {
     External,
     Link,
     Palette,
+    Update,
 }
 
 impl Icon {
@@ -87,11 +88,23 @@ impl Icon {
                 "link",
                 r#"<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>"#
             ),
+            Icon::Update => svg!(
+                "update",
+                r#"<path d="M12 15.5v-10M7.5 10 12 5.5l4.5 4.5"/><path d="M5 15.5v1.5a2.5 2.5 0 0 0 2.5 2.5h9a2.5 2.5 0 0 0 2.5-2.5v-1.5"/>"#
+            ),
             Icon::Palette => svg!(
                 "palette",
                 r#"<path d="M12 3.5a8.5 8.5 0 0 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.3-.3-.3-.5-.7-.5-1.2 0-.9.8-1.8 1.8-1.8h2.1a3.8 3.8 0 0 0 3.8-3.8C20.5 6.9 16.7 3.5 12 3.5z"/><circle cx="7.8" cy="11.5" r=".9"/><circle cx="10.3" cy="7.6" r=".9"/><circle cx="14.8" cy="7.8" r=".9"/>"#
             ),
         }
+    }
+}
+
+/// La Y del logo di Yonote (bianca nel sorgente, colorata al momento del disegno).
+pub fn logo_glyph() -> ImageSource<'static> {
+    ImageSource::Bytes {
+        uri: std::borrow::Cow::Borrowed("bytes://yonote-glyph.svg"),
+        bytes: egui::load::Bytes::Static(include_bytes!("../assets/yonote-glyph.svg")),
     }
 }
 

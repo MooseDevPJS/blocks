@@ -1,4 +1,4 @@
-# Welcome to Blocks
+# Welcome to Yonote
 
 Your notes are plain **Markdown** files in this folder: they are yours, forever.
 The first line of each note is its title.

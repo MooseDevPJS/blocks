@@ -1,5 +1,5 @@
 //! Funzioni specifiche di Windows: sfondo Mica/Acrylic sempre attivo e
-//! registrazione di Blocks in "Apri con" per i file Markdown.
+//! registrazione di Yonote in "Apri con" per i file Markdown.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -65,7 +65,7 @@ pub fn reveal_file(file: &std::path::Path) {
 // ---------------------------------------------------------------------------
 // "Apri con"
 
-const PROG_ID: &str = "Blocks.Markdown";
+const PROG_ID: &str = "Yonote.Markdown";
 const EXTENSIONS: [&str; 2] = [".md", ".markdown"];
 
 fn exe_path() -> std::io::Result<String> {
@@ -78,21 +78,23 @@ fn notify_shell() {
     unsafe { SHChangeNotify(SHCNE_ASSOCCHANGED as i32, SHCNF_IDLIST, std::ptr::null(), std::ptr::null()) };
 }
 
-/// Aggiunge Blocks a "Apri con" per i file Markdown (solo per l'utente corrente).
+/// Aggiunge Yonote a "Apri con" per i file Markdown (solo per l'utente corrente).
 /// Il file viene aperto e modificato direttamente, senza copie.
 pub fn register_open_with() -> std::io::Result<()> {
     use winreg::{RegKey, enums::HKEY_CURRENT_USER};
     let exe = exe_path()?;
     let command = format!("\"{exe}\" \"%1\"");
+    // Via la vecchia voce "Blocks", se c'è: in "Apri con" deve comparire una sola app.
+    let _ = remove_registration("Blocks.Markdown", "blocks.exe");
     let classes = RegKey::predef(HKEY_CURRENT_USER).create_subkey("Software\\Classes")?.0;
 
     let (prog, _) = classes.create_subkey(PROG_ID)?;
-    prog.set_value("", &"Nota Markdown (Blocks)")?;
+    prog.set_value("", &"Nota Markdown (Yonote)")?;
     prog.create_subkey("DefaultIcon")?.0.set_value("", &format!("\"{exe}\",0"))?;
     prog.create_subkey("shell\\open\\command")?.0.set_value("", &command)?;
 
-    let (app, _) = classes.create_subkey("Applications\\blocks.exe")?;
-    app.set_value("FriendlyAppName", &"Blocks")?;
+    let (app, _) = classes.create_subkey("Applications\\yonote.exe")?;
+    app.set_value("FriendlyAppName", &"Yonote")?;
     app.create_subkey("shell\\open\\command")?.0.set_value("", &command)?;
     let (types, _) = app.create_subkey("SupportedTypes")?;
     for ext in EXTENSIONS {
@@ -104,24 +106,30 @@ pub fn register_open_with() -> std::io::Result<()> {
 }
 
 pub fn unregister_open_with() -> std::io::Result<()> {
+    remove_registration(PROG_ID, "yonote.exe")?;
+    notify_shell();
+    Ok(())
+}
+
+/// Toglie una registrazione di "Apri con" (anche quella delle versioni chiamate "Blocks").
+fn remove_registration(prog_id: &str, exe_name: &str) -> std::io::Result<()> {
     use winreg::{RegKey, enums::HKEY_CURRENT_USER};
     let classes = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags("Software\\Classes", winreg::enums::KEY_ALL_ACCESS)?;
     let ignore_missing = |r: std::io::Result<()>| match r {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         other => other,
     };
-    ignore_missing(classes.delete_subkey_all(PROG_ID))?;
-    ignore_missing(classes.delete_subkey_all("Applications\\blocks.exe"))?;
+    ignore_missing(classes.delete_subkey_all(prog_id))?;
+    ignore_missing(classes.delete_subkey_all(format!("Applications\\{exe_name}")))?;
     for ext in EXTENSIONS {
         if let Ok(k) = classes.open_subkey_with_flags(format!("{ext}\\OpenWithProgids"), winreg::enums::KEY_ALL_ACCESS) {
-            ignore_missing(k.delete_value(PROG_ID))?;
+            ignore_missing(k.delete_value(prog_id))?;
         }
     }
-    notify_shell();
     Ok(())
 }
 
-/// Blocks è registrato in "Apri con" con questo eseguibile?
+/// Yonote è registrato in "Apri con" con questo eseguibile?
 pub fn is_registered() -> bool {
     use winreg::{RegKey, enums::HKEY_CURRENT_USER};
     let Ok(exe) = exe_path() else { return false };

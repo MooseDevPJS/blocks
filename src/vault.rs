@@ -435,10 +435,10 @@ mod tests {
     fn scan_hides_dot_and_attachment_folders() {
         let dir = tempdir();
         fs::create_dir_all(dir.join("Lavoro")).unwrap();
-        fs::create_dir_all(dir.join(".blocks")).unwrap();
+        fs::create_dir_all(dir.join(".yonote")).unwrap();
         fs::create_dir_all(dir.join(ATTACHMENTS_DIR)).unwrap();
         fs::write(dir.join("Lavoro/Progetto.md"), "Progetto X\nnote").unwrap();
-        fs::write(dir.join(".blocks/x.md"), "no").unwrap();
+        fs::write(dir.join(".yonote/x.md"), "no").unwrap();
         fs::write(dir.join("immagine.png"), "no").unwrap();
         let v = Vault::open(dir.clone()).unwrap();
         assert_eq!(v.notes.len(), 1);
@@ -456,7 +456,7 @@ mod tests {
     fn tempdir() -> PathBuf {
         use std::sync::atomic::{AtomicUsize, Ordering};
         static N: AtomicUsize = AtomicUsize::new(0);
-        let d = std::env::temp_dir().join(format!("blocks-test-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+        let d = std::env::temp_dir().join(format!("yonote-test-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
         fs::create_dir_all(&d).unwrap();
         d
     }

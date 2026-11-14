@@ -10,33 +10,21 @@ mod markdown;
 mod platform;
 mod settings;
 mod theme;
+mod update;
 mod vault;
 mod widgets;
 
-/// Icona dell'app (stessa forma del marchio disegnato nell'interfaccia).
-pub const APP_ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="15" fill="#E09F1F"/><g stroke="#fff" stroke-width="4.8" stroke-linecap="round"><path d="M18 22h28M18 32h28M18 42h17"/></g></svg>"##;
-
+/// Icona della finestra e della barra delle applicazioni (la stessa dell'eseguibile).
 fn app_icon() -> Option<eframe::egui::IconData> {
-    let tree = resvg::usvg::Tree::from_str(APP_ICON_SVG, &resvg::usvg::Options::default()).ok()?;
-    let size = 256;
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(size, size)?;
-    let scale = size as f32 / tree.size().width();
-    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
-    // tiny-skia usa alfa premoltiplicato: riportalo a normale per l'icona.
-    let rgba = pixmap
-        .pixels()
-        .iter()
-        .flat_map(|p| {
-            let c = p.demultiply();
-            [c.red(), c.green(), c.blue(), c.alpha()]
-        })
-        .collect();
-    Some(eframe::egui::IconData { rgba, width: size, height: size })
+    let img = image::load_from_memory_with_format(include_bytes!("../assets/yonote-256.png"), image::ImageFormat::Png).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Some(eframe::egui::IconData { rgba: img.into_raw(), width, height })
 }
 
 fn main() -> eframe::Result {
+    settings::Settings::migrate_legacy_dir();
     let mut viewport = eframe::egui::ViewportBuilder::default()
-        .with_title("Blocks")
+        .with_title("Yonote")
         .with_inner_size([1240.0, 800.0])
         .with_min_inner_size([480.0, 360.0])
         .with_transparent(true);
@@ -51,5 +39,5 @@ fn main() -> eframe::Result {
     };
     // Un file passato all'avvio (doppio clic, "Apri con", trascinato sull'icona).
     let file = std::env::args_os().nth(1).map(std::path::PathBuf::from).filter(|p| p.is_file());
-    eframe::run_native("Blocks", options, Box::new(move |cc| Ok(Box::new(app::BlocksApp::new(cc, file)))))
+    eframe::run_native("Yonote", options, Box::new(move |cc| Ok(Box::new(app::YonoteApp::new(cc, file)))))
 }

@@ -1,4 +1,4 @@
-# Benvenuto in Blocks
+# Benvenuto in Yonote
 
 Le tue note sono semplici file **Markdown** in questa cartella: sono tue, per sempre.
 La prima riga di ogni nota è il suo titolo.

@@ -11,17 +11,23 @@ pub const ITALIC: &str = "italic";
 pub const BOLD_ITALIC: &str = "bold-italic";
 
 /// Colori d'accento proposti nelle impostazioni.
-pub const ACCENTS: [(&str, [u8; 3]); 9] = [
-    ("Ambra", [0xE0, 0x9F, 0x1F]),
-    ("Blu", [0x2F, 0x7B, 0xE8]),
-    ("Indaco", [0x63, 0x66, 0xF1]),
-    ("Viola", [0x9B, 0x5D, 0xE5]),
-    ("Rosa", [0xE5, 0x4F, 0x8E]),
-    ("Corallo", [0xEF, 0x6A, 0x4C]),
-    ("Verde", [0x2E, 0xA0, 0x6B]),
-    ("Petrolio", [0x14, 0x9A, 0xA3]),
-    ("Grafite", [0x6E, 0x77, 0x81]),
+/// (nome italiano, nome inglese, colore). Il primo è quello predefinito.
+pub const ACCENTS: [(&str, &str, [u8; 3]); 10] = [
+    ("Bianco e nero", "Black & white", MONO),
+    ("Ambra", "Amber", [0xE0, 0x9F, 0x1F]),
+    ("Blu", "Blue", [0x2F, 0x7B, 0xE8]),
+    ("Indaco", "Indigo", [0x63, 0x66, 0xF1]),
+    ("Viola", "Violet", [0x9B, 0x5D, 0xE5]),
+    ("Rosa", "Pink", [0xE5, 0x4F, 0x8E]),
+    ("Corallo", "Coral", [0xEF, 0x6A, 0x4C]),
+    ("Verde", "Green", [0x2E, 0xA0, 0x6B]),
+    ("Petrolio", "Teal", [0x14, 0x9A, 0xA3]),
+    ("Grafite", "Graphite", [0x6E, 0x77, 0x81]),
 ];
+
+/// Accento "bianco e nero": nero nel tema chiaro, bianco nel tema scuro
+/// (prende il colore del testo del tema, anche dei temi da file).
+pub const MONO: [u8; 3] = [0, 0, 0];
 
 pub fn family(bold: bool, italic: bool) -> FontFamily {
     match (bold, italic) {
@@ -243,6 +249,8 @@ pub struct Palette {
     pub hover: Color32,
     /// Accento così come scelto.
     pub accent: Color32,
+    /// Accento "bianco e nero" (segue il colore del testo).
+    pub mono: bool,
     /// Accento scurito o schiarito per essere leggibile come testo.
     pub accent_text: Color32,
     /// Riempimento delle righe selezionate.
@@ -303,6 +311,7 @@ impl Palette {
             text_muted: Color32::from_rgb(0x5E, 0x5E, 0x5E),
             border: Color32::from_rgba_unmultiplied(0, 0, 0, 0x16),
             hover: Color32::from_rgba_unmultiplied(0, 0, 0, 0x0B),
+            mono: accent == Color32::from_rgb(MONO[0], MONO[1], MONO[2]),
             accent,
             accent_text: accent,
             accent_fill: accent,
@@ -323,6 +332,7 @@ impl Palette {
             text_muted: Color32::from_rgb(0xA6, 0xA6, 0xA6),
             border: Color32::from_rgba_unmultiplied(255, 255, 255, 0x14),
             hover: Color32::from_rgba_unmultiplied(255, 255, 255, 0x0E),
+            mono: accent == Color32::from_rgb(MONO[0], MONO[1], MONO[2]),
             accent,
             accent_text: accent,
             accent_fill: accent,
@@ -334,8 +344,18 @@ impl Palette {
 
     /// Calcola i colori derivati dall'accento.
     fn finish(mut self) -> Self {
+        if self.mono {
+            self.accent = Color32::from_rgb(self.text.r(), self.text.g(), self.text.b());
+        }
         self.accent_text = readable_on(self.accent, self.editor, 4.5);
-        self.accent_fill = with_alpha(self.accent, if self.dark { 0.30 } else { 0.22 });
+        // In bianco e nero la selezione è un grigio leggero, non un blocco pieno.
+        let fill = match (self.mono, self.dark) {
+            (true, false) => 0.09,
+            (true, true) => 0.14,
+            (false, false) => 0.22,
+            (false, true) => 0.30,
+        };
+        self.accent_fill = with_alpha(self.accent, fill);
         self.on_accent = if contrast(Color32::WHITE, self.accent) >= contrast(Color32::BLACK, self.accent) * 0.8 {
             Color32::WHITE
         } else {
@@ -462,7 +482,7 @@ pub fn theme_mtime(name: &str) -> Option<std::time::SystemTime> {
 // Applicazione
 
 fn palette_id(dark: bool) -> Id {
-    Id::unique(("blocks-palette", dark))
+    Id::unique(("yonote-palette", dark))
 }
 
 /// La palette del tema attivo.
@@ -579,7 +599,7 @@ mod tests {
 
     #[test]
     fn accent_text_is_always_readable() {
-        for (_, [r, g, b]) in ACCENTS {
+        for (_, _, [r, g, b]) in ACCENTS {
             let a = Color32::from_rgb(r, g, b);
             for p in [Palette::light(a), Palette::dark(a)] {
                 assert!(contrast(p.accent_text, p.editor) >= 4.5, "{a:?}");
@@ -601,7 +621,7 @@ mod tests {
     fn font_names_and_variants() {
         assert_eq!(font_display_name("Inter-Regular.ttf"), "Inter");
         assert_eq!(font_display_name("Lora.ttf"), "Lora");
-        let dir = std::env::temp_dir().join(format!("blocks-fonts-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("yonote-fonts-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("Inter-Regular.ttf"), b"x").unwrap();
         std::fs::write(dir.join("Inter-Bold.ttf"), b"x").unwrap();

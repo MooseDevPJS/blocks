@@ -1,4 +1,4 @@
-//! Impostazioni dell'utente, salvate in `%APPDATA%\Blocks\config\settings.toml`.
+//! Impostazioni dell'utente, salvate in `%APPDATA%\Yonote\config\settings.toml`.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -53,6 +53,8 @@ pub struct Settings {
     pub editor_font: String,
     /// Nome del tema da file (`themes/<nome>.toml`), vuoto = nessuno.
     pub custom_theme: String,
+    /// Controlla se c'è una nuova versione all'avvio.
+    pub check_updates: bool,
     pub sidebar_open: bool,
     pub list_open: bool,
 }
@@ -64,13 +66,14 @@ impl Default for Settings {
             theme: ThemeMode::System,
             backdrop: Backdrop::Mica,
             backdrop_opacity: 0.72,
-            accent: crate::theme::ACCENTS[0].1,
+            accent: crate::theme::MONO,
             language: Language::Auto,
             font_size: 16.0,
             line_spacing: 1.55,
             text_width: 720.0,
             editor_font: String::new(),
             custom_theme: String::new(),
+            check_updates: true,
             sidebar_open: true,
             list_open: true,
         }
@@ -78,13 +81,28 @@ impl Default for Settings {
 }
 
 impl Settings {
-    /// Cartella di impostazioni, temi e log. `BLOCKS_CONFIG_DIR` la sostituisce
+    /// Cartella di impostazioni, temi e log. `YONOTE_CONFIG_DIR` la sostituisce
     /// (versione portatile, test).
     pub fn dir() -> Option<PathBuf> {
-        if let Some(d) = std::env::var_os("BLOCKS_CONFIG_DIR").filter(|d| !d.is_empty()) {
+        if let Some(d) = std::env::var_os("YONOTE_CONFIG_DIR").filter(|d| !d.is_empty()) {
             return Some(PathBuf::from(d));
         }
-        directories::ProjectDirs::from("", "", "Blocks").map(|d| d.config_dir().to_path_buf())
+        directories::ProjectDirs::from("", "", "Yonote").map(|d| d.config_dir().to_path_buf())
+    }
+
+    /// Le versioni chiamate "Blocks" salvavano in `%APPDATA%\Blocks`: si sposta tutto
+    /// in `%APPDATA%\Yonote` al primo avvio, una volta sola.
+    pub fn migrate_legacy_dir() {
+        if std::env::var_os("YONOTE_CONFIG_DIR").is_some() {
+            return;
+        }
+        let root = |name: &str| directories::ProjectDirs::from("", "", name).and_then(|d| d.config_dir().parent().map(PathBuf::from));
+        if let (Some(old), Some(new)) = (root("Blocks"), root("Yonote"))
+            && old.is_dir()
+            && !new.exists()
+        {
+            let _ = std::fs::rename(&old, &new);
+        }
     }
 
     fn path() -> Option<PathBuf> {
