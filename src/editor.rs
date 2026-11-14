@@ -45,6 +45,8 @@ enum MenuCmd {
     InsertImage,
     InsertNoteLink,
     InsertRule,
+    /// Trova (false) o Trova e sostituisci (true).
+    Find(bool),
     File(FileCmd),
 }
 
@@ -185,6 +187,8 @@ pub struct Editor {
     parsed: (u64, Arc<Vec<Line>>),
     /// Ultima impaginazione e la chiave da cui dipende.
     layout: (u64, Option<LayoutJob>),
+    /// Trova e sostituisci.
+    pub find: crate::find::Find,
 }
 
 fn hash_of(value: impl std::hash::Hash) -> u64 {
@@ -266,6 +270,35 @@ impl Editor {
         self.cursor.is_some_and(|c| c.primary.index != c.secondary.index)
     }
 
+    /// Selezione attuale in byte (o il cursore), se l'editor ne ha una.
+    fn selection_bytes(&self, text: &str) -> Option<(usize, usize)> {
+        let c = self.cursor?;
+        let (a, b) = (c.primary.index.0.min(c.secondary.index.0), c.primary.index.0.max(c.secondary.index.0));
+        Some((char_to_byte(text, a), char_to_byte(text, b)))
+    }
+
+    /// Ctrl+F / Ctrl+H: apre la barra; il testo selezionato diventa la ricerca.
+    pub fn open_find(&mut self, replace: bool, text: &str) {
+        let sel = self.selection_bytes(text);
+        self.find.show(replace, sel.map(|(a, b)| &text[a..b]), sel.map_or(0, |(a, _)| a));
+    }
+
+    /// Barra Trova/Sostituisci; restituisce true se ha modificato il testo.
+    pub fn find_bar(&mut self, ctx: &egui::Context, right_top: Pos2, text: &mut String) -> bool {
+        match self.find.bar(ctx, right_top, text) {
+            crate::find::BarOutcome::None => false,
+            crate::find::BarOutcome::Changed => true,
+            crate::find::BarOutcome::Closed(active) => {
+                // Si torna a scrivere dove si era arrivati con la ricerca.
+                if let Some(r) = active {
+                    self.restore_range = Some((r.start, r.end));
+                }
+                self.focus_next_frame = true;
+                false
+            }
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui, text: &mut String, cx: &EditorCtx<'_>) -> EditorResult {
         let id = editor_id();
         let mut changed = false;
@@ -332,6 +365,8 @@ impl Editor {
             ui.fonts_mut(|f| f.layout_job(job))
         };
 
+        // Posto per l'evidenziazione della ricerca, sotto il testo (si riempie dopo l'impaginazione).
+        let find_slot = ui.painter().add(egui::Shape::Noop);
         let output = egui::TextEdit::multiline(text)
             .id(id)
             .frame(egui::Frame::NONE)
@@ -478,6 +513,34 @@ impl Editor {
                 _ => {}
             }
             char_start += line_chars + 1;
+        }
+
+        // Corrispondenze della ricerca, sul testo di questo fotogramma.
+        if self.find.open {
+            self.find.refresh(text, None);
+            let rect_of = |a: usize, b: usize| -> Vec<Rect> {
+                let mut rects: Vec<Rect> = Vec::new();
+                for i in a..b {
+                    let (l, r) = (row_rect(i), row_rect(i + 1));
+                    if (l.min.y - r.min.y).abs() > 0.5 {
+                        continue; // fine riga: il carattere va a capo
+                    }
+                    let ch = Rect::from_min_max(l.min, Pos2::new(r.min.x, l.max.y));
+                    match rects.last_mut() {
+                        Some(last) if (last.min.y - ch.min.y).abs() < 0.5 => *last = last.union(ch),
+                        _ => rects.push(ch),
+                    }
+                }
+                rects
+            };
+            let (shapes, active) = self.find.highlights(text, ui.clip_rect(), pal.dark, rect_of);
+            ui.painter().set(find_slot, egui::Shape::Vec(shapes));
+            if self.find.scroll {
+                self.find.scroll = false;
+                if let Some(r) = active {
+                    ui.scroll_to_rect(r.expand(40.0), Some(egui::Align::Center));
+                }
+            }
         }
 
         if let Some(pos) = toggle {
@@ -776,6 +839,11 @@ impl Editor {
         cx: &EditorCtx<'_>,
         cmd: MenuCmd,
     ) -> Result<(bool, Option<EditorAction>), String> {
+        if let MenuCmd::Find(replace) = cmd {
+            let range = self.menu_range.take();
+            self.find.show(replace, range.and_then(|(a, b)| text.get(a..b)), range.map_or(0, |(a, _)| a));
+            return Ok((false, None));
+        }
         self.focus_next_frame = true;
         let (a, b) = self
             .menu_range
@@ -859,6 +927,7 @@ impl Editor {
                 }
                 changed
             }
+            MenuCmd::Find(_) => false,
             MenuCmd::File(f) => {
                 let action = match f {
                     FileCmd::Pin => EditorAction::TogglePin,
@@ -935,6 +1004,12 @@ fn context_menu(ui: &mut egui::Ui, cx: &EditorCtx<'_>, has_selection: bool) -> O
     }
     if item(ui, tr("Seleziona tutto", "Select all"), "Ctrl+A", true) {
         cmd = Some(MenuCmd::SelectAll);
+    }
+    if item(ui, tr("Trova…", "Find…"), "Ctrl+F", true) {
+        cmd = Some(MenuCmd::Find(false));
+    }
+    if item(ui, tr("Sostituisci…", "Replace…"), "Ctrl+H", true) {
+        cmd = Some(MenuCmd::Find(true));
     }
     ui.separator();
     ui.menu_button(tr("Formato", "Format"), |ui| {

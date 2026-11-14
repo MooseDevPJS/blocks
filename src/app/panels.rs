@@ -397,6 +397,14 @@ impl YonoteApp {
             }
         }
 
+        // Trova e sostituisci: barra in alto a destra, sopra la nota.
+        if let Some(o) = &mut self.open
+            && self.editor.find_bar(ui.ctx(), Pos2::new(full.max.x - 14.0, bar.max.y + 2.0), &mut o.text)
+        {
+            o.last_edit = Instant::now();
+            o.edited = true;
+        }
+
         let width = (full.width() - 96.0).clamp(240.0, self.settings.text_width);
         let backlinks: Vec<(PathBuf, String)> = self.backlinks();
         let pinned = open_path.as_deref().is_some_and(|op| self.is_pinned(op));

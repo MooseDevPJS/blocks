@@ -30,6 +30,7 @@ copia il percorso, sposta nel Cestino.
 ## Scorciatoie
 - Ctrl+K  cerca una nota o un comando
 - Ctrl+N  nuova nota
+- Ctrl+F / Ctrl+H  trova / sostituisci nella nota
 - Ctrl+B / Ctrl+I  grassetto / corsivo
 - Ctrl+1 / Ctrl+2 / Ctrl+3  titoli
 - Ctrl+L  checklist, Ctrl+Invio per spuntarla

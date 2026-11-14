@@ -137,6 +137,8 @@ enum PaletteItem {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Command {
     NewNote,
+    Find,
+    Replace,
     ToggleTheme,
     FocusMode,
     ToggleSidebar,
@@ -148,8 +150,10 @@ enum Command {
 }
 
 impl Command {
-    const ALL: [Command; 9] = [
+    const ALL: [Command; 11] = [
         Command::NewNote,
+        Command::Find,
+        Command::Replace,
         Command::ToggleTheme,
         Command::FocusMode,
         Command::ToggleSidebar,
@@ -163,6 +167,8 @@ impl Command {
     fn label(self) -> &'static str {
         match self {
             Command::NewNote => tr("Nuova nota", "New note"),
+            Command::Find => tr("Trova nella nota", "Find in note"),
+            Command::Replace => tr("Trova e sostituisci", "Find and replace"),
             Command::ToggleTheme => tr("Cambia tema chiaro/scuro", "Toggle light/dark theme"),
             Command::FocusMode => tr("Modalità concentrazione", "Focus mode"),
             Command::ToggleSidebar => tr("Mostra/nascondi cartelle", "Show/hide folders"),
@@ -177,6 +183,8 @@ impl Command {
     fn shortcut(self) -> &'static str {
         match self {
             Command::NewNote => "Ctrl+N",
+            Command::Find => "Ctrl+F",
+            Command::Replace => "Ctrl+H",
             Command::FocusMode => "Ctrl+Shift+\\",
             Command::ToggleSidebar => "Ctrl+\\",
             Command::Settings => "Ctrl+,",
@@ -188,6 +196,7 @@ impl Command {
     fn icon(self) -> Icon {
         match self {
             Command::NewNote => Icon::Compose,
+            Command::Find | Command::Replace => Icon::Search,
             Command::ToggleTheme => Icon::Palette,
             Command::FocusMode | Command::ToggleSidebar => Icon::Sidebar,
             Command::Settings => Icon::Settings,
@@ -843,6 +852,11 @@ impl YonoteApp {
     fn run_command(&mut self, ctx: &egui::Context, cmd: Command) {
         match cmd {
             Command::NewNote => self.new_note(),
+            Command::Find | Command::Replace => {
+                if let Some(o) = &self.open {
+                    self.editor.open_find(cmd == Command::Replace, &o.text);
+                }
+            }
             Command::ToggleTheme => {
                 let dark = ctx.theme() == egui::Theme::Dark;
                 self.settings.theme = if dark { ThemeMode::Light } else { ThemeMode::Dark };
@@ -902,6 +916,13 @@ impl YonoteApp {
         if pressed(cmd | Modifiers::SHIFT, Key::F) {
             self.settings.list_open = true;
             ctx.memory_mut(|m| m.request_focus(Id::unique("yonote-search")));
+        }
+        // Dopo Ctrl+Maiusc+F, che altrimenti verrebbe preso anche da qui.
+        if pressed(cmd, Key::F) {
+            self.run_command(ctx, Command::Find);
+        }
+        if pressed(cmd, Key::H) {
+            self.run_command(ctx, Command::Replace);
         }
         if pressed(cmd | Modifiers::SHIFT, Key::P) {
             self.run_command(ctx, Command::PinNote);

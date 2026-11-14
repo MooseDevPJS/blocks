@@ -3,7 +3,7 @@
 ; (after `cargo build --release`).
 
 #define AppName "Yonote"
-#define AppVersion "0.2.0"
+#define AppVersion "0.2.1"
 #define AppPublisher "MooseDevPJS"
 #define AppURL "https://github.com/MooseDevPJS/yonote"
 #define AppExe "yonote.exe"

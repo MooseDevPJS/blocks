@@ -200,7 +200,7 @@ impl YonoteApp {
                     widgets::setting_row(
                         ui,
                         tr("Sfondo", "Background"),
-                        tr("Mica e Acrylic lasciano trasparire il desktop.", "Mica and Acrylic let the desktop show through."),
+                        tr("Mica e Acrylic lasciano trasparire il desktop dietro la finestra.", "Mica and Acrylic let the desktop show through the window."),
                         |ui| {
                             widgets::segmented(
                                 ui,
@@ -213,7 +213,7 @@ impl YonoteApp {
                         widgets::setting_row(
                             ui,
                             tr("Opacità dei pannelli", "Panel opacity"),
-                            tr("Più alta = testo più leggibile.", "Higher = easier to read."),
+                            tr("Più alta: pannelli più pieni e testo più leggibile.", "Higher: more solid panels and easier to read text."),
                             |ui| {
                                 ui.add(egui::Slider::new(&mut s.backdrop_opacity, 0.3..=1.0).show_value(false));
                             },
@@ -244,7 +244,7 @@ impl YonoteApp {
                     widgets::setting_row(
                         ui,
                         tr("Tema da file", "Theme file"),
-                        tr("File .toml nella cartella dei temi.", ".toml files in the themes folder."),
+                        tr("I file .toml nella cartella dei temi cambiano i colori di Yonote. Si ricaricano mentre li modifichi.", "The .toml files in the themes folder change Yonote's colors. They reload while you edit them."),
                         |ui| {
                             if ui.button(tr("Apri cartella", "Open folder")).clicked()
                                 && let Some(d) = theme::themes_dir()
@@ -272,7 +272,7 @@ impl YonoteApp {
                     widgets::setting_row(
                         ui,
                         tr("Font del testo", "Text font"),
-                        tr("Puoi importare file .ttf e .otf.", "You can import .ttf and .otf files."),
+                        tr("Il font delle note. Con «Importa…» puoi aggiungere file .ttf e .otf.", "The font of your notes. Use \"Import…\" to add .ttf and .otf files."),
                         |ui| {
                             if ui
                                 .button(tr("Importa…", "Import…"))
@@ -315,7 +315,7 @@ impl YonoteApp {
                             );
                         },
                     );
-                    widgets::setting_row(ui, tr("Dimensione", "Size"), "Ctrl + / Ctrl −", |ui| {
+                    widgets::setting_row(ui, tr("Dimensione", "Size"), tr("Anche con Ctrl + e Ctrl −.", "Also with Ctrl + and Ctrl −."), |ui| {
                         ui.add(egui::Slider::new(&mut s.font_size, 10.0..=32.0).step_by(1.0).suffix(" pt"));
                     });
                     widgets::setting_row(ui, tr("Interlinea", "Line spacing"), "", |ui| {
@@ -329,12 +329,12 @@ impl YonoteApp {
                     ui.separator();
                     widgets::settings_heading(ui, tr("Note", "Notes"));
                     let root = s.vault.clone().map(|v| v.display().to_string()).unwrap_or_default();
-                    widgets::setting_row(ui, tr("Cartella", "Folder"), &widgets::middle_ellipsis(&root, 44), |ui| {
+                    widgets::setting_row_detail(ui, tr("Cartella", "Folder"), &widgets::middle_ellipsis(&root, 44), |ui| {
                         if ui.button(tr("Cambia…", "Change…")).on_hover_text(&root).clicked() {
                             change_vault = true;
                         }
                     });
-                    widgets::setting_row(ui, tr("Lingua", "Language"), tr("Si applica subito.", "Applies immediately."), |ui| {
+                    widgets::setting_row(ui, tr("Lingua", "Language"), tr("Auto segue la lingua di Windows. Si applica subito.", "Auto follows the Windows language. Applies immediately."), |ui| {
                         widgets::segmented(
                             ui,
                             &mut s.language,
@@ -369,7 +369,7 @@ impl YonoteApp {
                     };
                     let mut check_now = false;
                     let mut open_update = false;
-                    widgets::setting_row(ui, tr("Aggiornamenti", "Updates"), &help, |ui| {
+                    widgets::setting_row_detail(ui, tr("Aggiornamenti", "Updates"), &help, |ui| {
                         if matches!(status, Status::Available(_) | Status::Downloading(..) | Status::Ready(..)) {
                             if widgets::button(ui, tr("Aggiorna…", "Update…"), true).clicked() {
                                 open_update = true;
@@ -381,7 +381,7 @@ impl YonoteApp {
                     widgets::setting_row(
                         ui,
                         tr("Controlla all'avvio", "Check on startup"),
-                        tr("Una richiesta a GitHub, nient'altro.", "One request to GitHub, nothing else."),
+                        tr("All'avvio Yonote chiede a GitHub se c'è una versione nuova. Nessun altro dato viene inviato.", "On startup Yonote asks GitHub whether there's a new version. No other data is sent."),
                         |ui| {
                             widgets::toggle(ui, &mut s.check_updates, tr("Controlla all'avvio", "Check on startup"));
                         },

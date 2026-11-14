@@ -3,6 +3,7 @@
 
 mod app;
 mod editor;
+mod find;
 mod fsutil;
 mod i18n;
 mod icons;

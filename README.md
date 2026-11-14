@@ -38,7 +38,7 @@
 | **Images** | Paste a screenshot with `Ctrl+V`, drag a file in, or right-click → Insert |
 | **Links** | `[text](url)`, `[[Another note]]` with autocomplete, backlinks ("Linked from…") |
 | **Organize** | Folders, `#tags`, pinned notes, multi-select with `Ctrl`/`Shift`+click, `Del` to delete |
-| **Find anything** | Search that ignores case and accents, plus the `Ctrl+K` command palette |
+| **Find anything** | Search all notes ignoring case and accents, find and replace inside a note, the `Ctrl+K` command palette |
 | **Make it yours** | Mica, Acrylic or solid background, light/dark/system theme, black & white by default or any accent color, `.toml` theme files, your own fonts |
 | **Native** | Right-click menus, "Open with" for `.md` files (edits the file in place), screen reader labels, English and Italian |
 | **Updates** | Checks GitHub for new versions and updates itself in one click |
@@ -60,7 +60,7 @@
 
 ### Recommended: the installer
 
-1. Open the [latest release](../../releases/latest) and download **`Yonote-0.2.0-setup.exe`**.
+1. Open the [latest release](../../releases/latest) and download **`Yonote-0.2.1-setup.exe`**.
 2. Run it. No administrator rights are needed: Yonote installs for your user only.
 3. Choose your options:
    - **Add Yonote to "Open with" for Markdown files.** Right-click any `.md` file → *Open with* → *Yonote*. The file is edited in place, never copied.
@@ -102,6 +102,7 @@ The installer is written to `installer\Output\`.
 | `Ctrl+N` | New note |
 | `Ctrl+K` / `Ctrl+P` | Go to a note or run a command |
 | `Ctrl+Shift+F` | Search all notes |
+| `Ctrl+F` / `Ctrl+H` | Find / replace in the note (`Enter`, `Shift+Enter` or `F3` to move between results) |
 | `Ctrl+B` / `Ctrl+I` / `Ctrl+Shift+X` / `Ctrl+Shift+C` | Bold / italic / strikethrough / code |
 | `Ctrl+K` with text selected | Make a link |
 | `Ctrl+1` `2` `3` / `Ctrl+0` | Headings / normal text |
@@ -143,6 +144,7 @@ src/
 ├── main.rs        startup, window, app icon
 ├── app/           app state (mod.rs), the three columns (panels.rs), dialogs (dialogs.rs)
 ├── editor.rs      live-preview editor, right-click menu, suggestions, images
+├── find.rs        find and replace in the open note
 ├── markdown.rs    Markdown parsing for the preview, tags, links
 ├── vault.rs       notes folder: scan, load, save, rename, search
 ├── theme.rs       fonts, colors, accent, theme files

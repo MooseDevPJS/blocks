@@ -36,6 +36,8 @@ pub enum Icon {
     Sidebar,
     Close,
     ChevronRight,
+    ChevronDown,
+    ChevronUp,
     External,
     Link,
     Palette,
@@ -80,6 +82,8 @@ impl Icon {
             Icon::Sidebar => svg!("sidebar", r#"<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/>"#),
             Icon::Close => svg!("close", r#"<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>"#),
             Icon::ChevronRight => svg!("chevron-right", r#"<path d="m9.5 6 6 6-6 6"/>"#),
+            Icon::ChevronDown => svg!("chevron-down", r#"<path d="m6 9.5 6 6 6-6"/>"#),
+            Icon::ChevronUp => svg!("chevron-up", r#"<path d="m6 14.5 6-6 6 6"/>"#),
             Icon::External => svg!(
                 "external",
                 r#"<path d="M13.5 4.5h6v6M19.5 4.5 11 13"/><path d="M17.5 14v3.5a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2H10"/>"#

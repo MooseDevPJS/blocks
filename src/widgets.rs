@@ -299,22 +299,62 @@ pub fn toggle(ui: &mut egui::Ui, on: &mut bool, label: &str) -> Response {
     resp
 }
 
-/// Riga delle impostazioni: etichetta + descrizione a sinistra, controllo a destra.
-pub fn setting_row(ui: &mut egui::Ui, label: &str, help: &str, control: impl FnOnce(&mut egui::Ui)) {
+/// Riga delle impostazioni: etichetta a sinistra, controllo a destra.
+/// La spiegazione (`info`) non occupa spazio: compare passando sul "?" accanto all'etichetta.
+pub fn setting_row(ui: &mut egui::Ui, label: &str, info: &str, control: impl FnOnce(&mut egui::Ui)) {
+    row(ui, label, info, "", control);
+}
+
+/// Come `setting_row`, con un dato da vedere subito sotto l'etichetta (cartella, versione).
+pub fn setting_row_detail(ui: &mut egui::Ui, label: &str, detail: &str, control: impl FnOnce(&mut egui::Ui)) {
+    row(ui, label, "", detail, control);
+}
+
+fn row(ui: &mut egui::Ui, label: &str, info: &str, detail: &str, control: impl FnOnce(&mut egui::Ui)) {
     let p = pal(ui);
     ui.horizontal(|ui| {
-        ui.set_min_height(46.0);
+        ui.set_min_height(if detail.is_empty() { 40.0 } else { 46.0 });
         ui.vertical(|ui| {
-            // La descrizione non deve mai finire sotto il controllo a destra.
+            // Il dato sotto l'etichetta non deve mai finire sotto il controllo a destra.
             ui.set_max_width(ui.available_width() * 0.56);
-            ui.add_space(4.0);
-            ui.label(egui::RichText::new(label).size(14.0).color(p.text));
-            if !help.is_empty() {
-                ui.label(egui::RichText::new(help).size(12.5).color(p.text_muted));
+            ui.add_space(if detail.is_empty() { 9.0 } else { 4.0 });
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                ui.label(egui::RichText::new(label).size(14.0).color(p.text));
+                if !info.is_empty() {
+                    info_tip(ui, label, info);
+                }
+            });
+            if !detail.is_empty() {
+                ui.label(egui::RichText::new(detail).size(12.5).color(p.text_muted));
             }
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), control);
     });
+}
+
+/// Piccolo "?" che mostra una spiegazione al passaggio del mouse (o col focus da tastiera).
+pub fn info_tip(ui: &mut egui::Ui, label: &str, info: &str) -> Response {
+    let p = pal(ui);
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::focusable_noninteractive() | Sense::hover());
+    a11y(&resp, egui::Role::Tooltip, &format!("{label}: {info}"), None);
+    let active = resp.hovered() || resp.has_focus();
+    let color = if active { p.text } else { p.text_muted.gamma_multiply(0.8) };
+    let c = rect.center();
+    if active {
+        ui.painter().circle_filled(c, 8.0, p.hover.gamma_multiply(2.0));
+    }
+    ui.painter().circle_stroke(c, 6.75, Stroke::new(1.2, color));
+    ui.painter().text(c + Vec2::new(0.0, 0.25), Align2::CENTER_CENTER, "?", FontId::new(10.0, theme::family(true, false)), color);
+    let tip = |ui: &mut egui::Ui| {
+        ui.set_max_width(280.0);
+        ui.label(egui::RichText::new(info).size(13.0));
+    };
+    if resp.has_focus() && !resp.hovered() {
+        egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), resp.id, egui::PopupAnchor::Pointer).show(tip);
+        return resp;
+    }
+    resp.on_hover_ui(tip)
 }
 
 /// Titolo di una sezione delle impostazioni.

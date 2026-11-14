@@ -30,6 +30,7 @@ copy path, move to the Recycle Bin.
 ## Shortcuts
 - Ctrl+K  search a note or a command
 - Ctrl+N  new note
+- Ctrl+F / Ctrl+H  find / replace in the note
 - Ctrl+B / Ctrl+I  bold / italic
 - Ctrl+1 / Ctrl+2 / Ctrl+3  headings
 - Ctrl+L  checklist, Ctrl+Enter to tick it

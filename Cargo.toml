@@ -1,6 +1,6 @@
 [package]
 name = "yonote"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Note leggere per Windows: file Markdown, anteprima live, niente telemetria."
 license = "PolyForm-Noncommercial-1.0.0"
